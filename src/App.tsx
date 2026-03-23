@@ -17,6 +17,19 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw7N3_BlNWm4u-PAU3KN
 const EXPENSE_CATEGORIES = ['Comida', 'Transporte', 'Servicios', 'Ocio', 'Salud', 'Compras', 'Otros'];
 const INCOME_CATEGORIES = ['Salario', 'Negocio', 'Transferencia', 'Inversiones', 'Otros'];
 
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+const getMonthString = (date: string | Date) => {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return 'Desconocido';
+  const month = MONTH_NAMES[d.getMonth()];
+  const year = d.getFullYear();
+  return `${month} ${year}`;
+};
+
 export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [amount, setAmount] = useState('');
@@ -27,13 +40,27 @@ export default function App() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState('Marzo 2026');
+  const [selectedMonth, setSelectedMonth] = useState(() => getMonthString(new Date()));
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [startY, setStartY] = useState(0);
 
-  const availableMonths = ['Enero 2026', 'Febrero 2026', 'Marzo 2026', 'Abril 2026'];
+  const uniqueMonths = Array.from(new Set(transactions.map(t => getMonthString(t.date))));
+  const availableMonths = uniqueMonths.length > 0 ? uniqueMonths : [getMonthString(new Date())];
+  
+  // Sort available months chronologically (newest first)
+  availableMonths.sort((a, b) => {
+    if (a === 'Desconocido') return 1;
+    if (b === 'Desconocido') return -1;
+    const [monthA, yearA] = a.split(' ');
+    const [monthB, yearB] = b.split(' ');
+    const monthIndexA = MONTH_NAMES.indexOf(monthA);
+    const monthIndexB = MONTH_NAMES.indexOf(monthB);
+    const dateA = new Date(parseInt(yearA), monthIndexA, 1);
+    const dateB = new Date(parseInt(yearB), monthIndexB, 1);
+    return dateB.getTime() - dateA.getTime();
+  });
 
   const fetchTransactions = async (isRefresh = false) => {
     if (!isRefresh) setIsLoading(true);
@@ -95,13 +122,13 @@ export default function App() {
     setCategory(type === 'expense' ? EXPENSE_CATEGORIES[0] : INCOME_CATEGORIES[0]);
   }, [type]);
 
-  const currentMonthName = new Date().toLocaleString('es-MX', { month: 'long' }).toUpperCase();
+  const filteredTransactions = transactions.filter(t => getMonthString(t.date) === selectedMonth);
 
-  const totalIncome = transactions
+  const totalIncome = filteredTransactions
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalExpense = transactions
+  const totalExpense = filteredTransactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
@@ -309,7 +336,7 @@ export default function App() {
             </button>
             <div className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400 px-2">
               <Activity size={16} />
-              <span>{transactions.length} transacciones</span>
+              <span>{filteredTransactions.length} transacciones</span>
             </div>
           </div>
           
@@ -318,14 +345,14 @@ export default function App() {
               <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4" />
               <p className="text-sm font-medium">Cargando transacciones...</p>
             </div>
-          ) : transactions.length === 0 ? (
+          ) : filteredTransactions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center opacity-40">
               <Receipt size={64} strokeWidth={1} className="mb-4" />
               <p className="text-sm font-medium">Sin transacciones</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {transactions.map((t) => (
+              {filteredTransactions.map((t) => (
                 <div key={t.id} className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-sm border border-zinc-200/50 dark:border-zinc-800/50 flex items-center gap-4">
                   
                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${getCategoryBg(t.category)}`}>
